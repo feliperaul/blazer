@@ -297,7 +297,7 @@ module Blazer
       end
 
       def set_query
-        @query = Blazer::Query.find(params[:id].to_s.split("-").first)
+        @query = Blazer::Query.where(id_hash: params[:id]).take
 
         unless @query.viewable?(blazer_user)
           render_forbidden

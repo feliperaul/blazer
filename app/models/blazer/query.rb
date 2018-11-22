@@ -5,13 +5,14 @@ module Blazer
     has_many :dashboard_queries, dependent: :destroy
     has_many :dashboards, through: :dashboard_queries
     has_many :audits
+    before_create :assign_id_hash
 
     validates :statement, presence: true
 
     scope :named, -> { where("blazer_queries.name <> ''") }
 
     def to_param
-      [id, name].compact.join("-").gsub("'", "").parameterize
+      self.id_hash
     end
 
     def friendly_name
@@ -36,5 +37,11 @@ module Blazer
     def variables
       Blazer.extract_vars(statement)
     end
+
+    private
+
+      def assign_id_hash
+        self.id_hash = SecureRandom.urlsafe_base64
+      end
   end
 end
