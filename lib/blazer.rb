@@ -1,11 +1,16 @@
+# dependencies
 require "csv"
 require "yaml"
 require "chartkick"
 require "safely/core"
+
+# modules
 require "blazer/version"
 require "blazer/data_source"
 require "blazer/result"
 require "blazer/run_statement"
+
+# adapters
 require "blazer/adapters/base_adapter"
 require "blazer/adapters/athena_adapter"
 require "blazer/adapters/bigquery_adapter"
@@ -17,6 +22,8 @@ require "blazer/adapters/mongodb_adapter"
 require "blazer/adapters/presto_adapter"
 require "blazer/adapters/sql_adapter"
 require "blazer/adapters/snowflake_adapter"
+
+# engine
 require "blazer/engine"
 
 module Blazer
@@ -35,16 +42,19 @@ module Blazer
     attr_accessor :transform_statement
     attr_accessor :check_schedules
     attr_accessor :anomaly_checks
+    attr_accessor :forecasting
     attr_accessor :async
     attr_accessor :images
     attr_accessor :query_viewable
     attr_accessor :query_editable
     attr_accessor :override_csp
+    attr_accessor :slack_webhook_url
   end
   self.audit = true
   self.user_name = :name
   self.check_schedules = ["5 minutes", "1 hour", "1 day"]
   self.anomaly_checks = false
+  self.forecasting = false
   self.async = false
   self.images = false
   self.override_csp = false
@@ -95,20 +105,11 @@ module Blazer
 
   def self.data_sources
     @data_sources ||= begin
-      ds = Hash[
-        settings["data_sources"].map do |id, s|
-          [id, Blazer::DataSource.new(id, s)]
-        end
-      ]
-      ds.default = ds.values.first
+      ds = Hash.new { |hash, key| raise Blazer::Error, "Unknown data source: #{key}" }
+      settings["data_sources"].each do |id, s|
+        ds[id] = Blazer::DataSource.new(id, s)
+      end
       ds
-
-      # TODO Blazer 2.0
-      # ds2 = Hash.new { |hash, key| raise Blazer::Error, "Unknown data source: #{key}" }
-      # ds.each do |k, v|
-      #   ds2[k] = v
-      # end
-      # ds2
     end
   end
 
@@ -173,9 +174,14 @@ module Blazer
 
   def self.send_failing_checks
     emails = {}
+    slack_channels = {}
+
     Blazer::Check.includes(:query).where(state: ["failing", "error", "timed out", "disabled"]).find_each do |check|
       check.split_emails.each do |email|
         (emails[email] ||= []) << check
+      end
+      check.split_slack_channels.each do |channel|
+        (slack_channels[channel] ||= []) << check
       end
     end
 
@@ -184,6 +190,16 @@ module Blazer
         Blazer::CheckMailer.failing_checks(email, checks).deliver_now
       end
     end
+
+    slack_channels.each do |channel, checks|
+      Safely.safely do
+        Blazer::SlackNotifier.failing_checks(channel, checks)
+      end
+    end
+  end
+
+  def self.slack?
+    slack_webhook_url.present?
   end
 
   def self.adapters

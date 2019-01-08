@@ -6,6 +6,7 @@ module Blazer
       # use a proc instead of a string
       app.config.assets.precompile << proc { |path| path =~ /\Ablazer\/application\.(js|css)\z/ }
       app.config.assets.precompile << proc { |path| path =~ /\Ablazer\/.+\.(eot|svg|ttf|woff)\z/ }
+      app.config.assets.precompile << proc { |path| path == "blazer/favicon.png" }
 
       Blazer.time_zone ||= Blazer.settings["time_zone"] || Time.zone
       Blazer.audit = Blazer.settings.key?("audit") ? Blazer.settings["audit"] : true
@@ -16,6 +17,7 @@ module Blazer
       Blazer.cache ||= Rails.cache
 
       Blazer.anomaly_checks = Blazer.settings["anomaly_checks"] || false
+      Blazer.forecasting = Blazer.settings["forecasting"] || false
       Blazer.async = Blazer.settings["async"] || false
       if Blazer.async
         require "blazer/run_statement_job"
@@ -23,6 +25,7 @@ module Blazer
 
       Blazer.images = Blazer.settings["images"] || false
       Blazer.override_csp = Blazer.settings["override_csp"] || false
+      Blazer.slack_webhook_url = Blazer.settings["slack_webhook_url"] || ENV["BLAZER_SLACK_WEBHOOK_URL"]
     end
   end
 end

@@ -6,7 +6,7 @@ Explore your data with SQL. Easily create charts and dashboards, and share them 
 
 [![Screenshot](https://blazer.dokkuapp.com/assets/screenshot-6ca3115a518b488026e48be83ba0d4c9.png)](https://blazer.dokkuapp.com)
 
-:envelope: [Get notified of updates](https://eepurl.com/cbUwsD)
+Blazer 2.0 was recently released! See [instructions for upgrading](#20).
 
 :tangerine: Battle-tested at [Instacart](https://www.instacart.com/opensource)
 
@@ -53,7 +53,7 @@ For production, specify your database:
 ENV["BLAZER_DATABASE_URL"] = "postgres://user:password@hostname:5432/database"
 ```
 
-Blazer tries to protect against queries which modify data (by running each query in a transaction and rolling it back), but a safer approach is to use a read only user.  [See how to create one](#permissions).
+Blazer tries to protect against queries which modify data (by running each query in a transaction and rolling it back), but a safer approach is to use a read only user. [See how to create one](#permissions).
 
 #### Checks (optional)
 
@@ -86,44 +86,13 @@ Here’s what it looks like with cron.
 0   8 * * * rake blazer:send_failing_checks
 ```
 
-## Permissions
+For Slack notifications, create an [incoming webhook](https://slack.com/apps/A0F7XDUAZ-incoming-webhooks) and set:
 
-### PostgreSQL
-
-Create a user with read only permissions:
-
-```sql
-BEGIN;
-CREATE ROLE blazer LOGIN PASSWORD 'secret123';
-GRANT CONNECT ON DATABASE database_name TO blazer;
-GRANT USAGE ON SCHEMA public TO blazer;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO blazer;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO blazer;
-COMMIT;
+```sh
+BLAZER_SLACK_WEBHOOK_URL=https://hooks.slack.com/...
 ```
 
-### MySQL
-
-Create a user with read only permissions:
-
-```sql
-GRANT SELECT, SHOW VIEW ON database_name.* TO blazer@’127.0.0.1′ IDENTIFIED BY ‘secret123‘;
-FLUSH PRIVILEGES;
-```
-
-### MongoDB
-
-Create a user with read only permissions:
-
-```
-db.createUser({user: "blazer", pwd: "password", roles: ["read"]})
-```
-
-Also, make sure authorization is enabled when you start the server.
-
-### Sensitive Data
-
-Check out [Hypershield](https://github.com/ankane/hypershield) to shield sensitive data.
+Name the webhook “Blazer” and add a cool icon.
 
 ## Authentication
 
@@ -164,6 +133,47 @@ end
 ```
 
 Be sure to render or redirect for unauthorized users.
+
+## Permissions
+
+Blazer runs each query in a transaction and rolls it back to prevent queries from modifying data. As an additional line of defense, we recommend using a read only user.
+
+### PostgreSQL
+
+Create a user with read only permissions:
+
+```sql
+BEGIN;
+CREATE ROLE blazer LOGIN PASSWORD 'secret123';
+GRANT CONNECT ON DATABASE database_name TO blazer;
+GRANT USAGE ON SCHEMA public TO blazer;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO blazer;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO blazer;
+COMMIT;
+```
+
+### MySQL
+
+Create a user with read only permissions:
+
+```sql
+GRANT SELECT, SHOW VIEW ON database_name.* TO blazer@’127.0.0.1′ IDENTIFIED BY ‘secret123‘;
+FLUSH PRIVILEGES;
+```
+
+### MongoDB
+
+Create a user with read only permissions:
+
+```
+db.createUser({user: "blazer", pwd: "password", roles: ["read"]})
+```
+
+Also, make sure authorization is enabled when you start the server.
+
+## Sensitive Data
+
+If your database contains sensitive or personal data, check out [Hypershield](https://github.com/ankane/hypershield) to shield it.
 
 ## Queries
 
@@ -308,10 +318,18 @@ SELECT gender, zip_code, COUNT(*) FROM users GROUP BY 1, 2
 
 ### Scatter Chart
 
-2 columns - both numeric
+2 columns - both numeric - [Example](https://blazer.dokkuapp.com/queries/16-scatter-chart)
 
 ```sql
 SELECT x, y FROM table
+```
+
+### Pie Chart
+
+2 columns - string, numeric - and last column named `pie` - [Example](https://blazer.dokkuapp.com/queries/17-pie-chart)
+
+```sql
+SELECT gender, COUNT(*) AS pie FROM users GROUP BY 1
 ```
 
 ### Maps
@@ -354,24 +372,64 @@ Then create check with optional emails if you want to be notified. Emails are se
 
 ## Anomaly Detection
 
-Anomaly detection is supported thanks to Twitter’s [AnomalyDetection](https://github.com/twitter/AnomalyDetection) library.
+Blazer supports two different approaches to anomaly detection.
 
-First, [install R](https://cloud.r-project.org/). Then, run:
+### Trend
 
-```R
-install.packages("devtools")
-devtools::install_github("twitter/AnomalyDetection")
+[Trend](https://trendapi.org/) is easiest to set up but uses an external service.
+
+Add [trend](https://github.com/ankane/trend) to your Gemfile:
+
+```ruby
+gem 'trend'
 ```
 
 And add to `config/blazer.yml`:
 
 ```yml
-anomaly_checks: true
+anomaly_checks: trend
+```
+
+### R
+
+R is harder to set up but doesn’t use an external service. It uses Twitter’s [AnomalyDetection](https://github.com/twitter/AnomalyDetection) library.
+
+First, [install R](https://cloud.r-project.org/). Then, run:
+
+```R
+install.packages("remotes")
+remotes::install_github("twitter/AnomalyDetection")
+```
+
+And add to `config/blazer.yml`:
+
+```yml
+anomaly_checks: r
 ```
 
 If upgrading from version 1.4 or below, also follow the [upgrade instructions](#15).
 
 If you’re on Heroku, follow [these additional instructions](#anomaly-detection-on-heroku).
+
+## Forecasting
+
+Blazer has experimental support for forecasting through [Trend](https://trendapi.org/).
+
+[Example](https://blazer.dokkuapp.com/queries/18-forecast?forecast=t)
+
+Add [trend](https://github.com/ankane/trend) to your Gemfile:
+
+```ruby
+gem 'trend'
+```
+
+And add to `config/blazer.yml`:
+
+```yml
+forecasting: trend
+```
+
+A forecast link will appear for queries that return 2 columns with types timestamp and numeric.
 
 ## Data Sources
 
@@ -399,7 +457,7 @@ data_sources:
 - [Apache Drill](#apache-drill)
 - [Cassandra](#cassandra)
 - [Druid](#druid)
-- [Elasticsearch](#elasticsearch) [beta]
+- [Elasticsearch](#elasticsearch)
 - [Google BigQuery](#google-bigquery)
 - [IBM DB2 and Informix](#ibm-db2-and-informix)
 - [MongoDB](#mongodb-1)
@@ -623,6 +681,20 @@ For an easy way to group by day, week, month, and more with correct time zones, 
 
 Looking for a standalone version? Check out [Ghost Blazer](https://github.com/buren/ghost_blazer).
 
+## Performance
+
+By default, queries take up a request while they are running. To run queries asynchronously, add to your config:
+
+```yml
+async: true
+```
+
+**Note:** Requires Rails 5+ and caching to be enabled. If you have multiple web processes, your app must use a centralized cache store like Memcached or Redis.
+
+```ruby
+config.cache_store = :mem_cache_store
+```
+
 ## Anomaly Detection on Heroku
 
 Add the [R buildpack](https://github.com/virtualstaticvoid/heroku-buildpack-r) to your app.
@@ -642,7 +714,7 @@ if (!"AnomalyDetection" %in% installed.packages()) {
 
 Commit and deploy away. The first deploy may take a few minutes.
 
-## Content Security Policy [master]
+## Content Security Policy
 
 If views are stuck with a `Loading...` message, there might be a problem with strict CSP settings in your app. This can be checked with Firefox or Chrome dev tools. You can allow Blazer to override these settings for its controllers with:
 
@@ -651,6 +723,20 @@ override_csp: true
 ```
 
 ## Upgrading
+
+### 2.0
+
+To use Slack notifications, create a migration
+
+```sh
+rails g migration add_slack_channels_to_blazer_checks
+```
+
+with:
+
+```ruby
+add_column :blazer_checks, :slack_channels, :text
+```
 
 ### 1.5
 
@@ -663,8 +749,8 @@ rails g migration upgrade_blazer_to_1_5
 with:
 
 ```ruby
-add_column(:blazer_checks, :check_type, :string)
-add_column(:blazer_checks, :message, :text)
+add_column :blazer_checks, :check_type, :string
+add_column :blazer_checks, :message, :text
 commit_db_transaction
 
 Blazer::Check.reset_column_information
@@ -797,12 +883,6 @@ audit: true
 # email to send checks from
 # from_email: blazer@example.org
 ```
-
-## TODO
-
-- advanced permissions
-- standalone version
-- better navigation
 
 ## History
 

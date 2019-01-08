@@ -1,12 +1,12 @@
-<% unless @check.respond_to?(:invert) %>
-  <p class="text-muted">Checks are designed to identify bad data. A check fails if there are any results.</p>
-<% end %>
+<%= form_for @check, html: {class: "small-form"} do |f| %>
+  <% unless @check.respond_to?(:check_type) || @check.respond_to?(:invert) %>
+    <p class="text-muted">Checks are designed to identify bad data. A check fails if there are any results.</p>
+  <% end %>
 
-<% if @check.errors.any? %>
-  <div class="alert alert-danger"><%= @check.errors.full_messages.first %></div>
-<% end %>
+  <% if @check.errors.any? %>
+    <div class="alert alert-danger"><%= @check.errors.full_messages.first %></div>
+  <% end %>
 
-<%= form_for @check do |f| %>
   <div class="form-group">
     <%= f.label :query_id, "Query" %>
     <div class="hide">
@@ -60,7 +60,15 @@
     <%= f.label :emails %>
     <%= f.text_field :emails, placeholder: "Optional, comma separated", class: "form-control" %>
   </div>
-  <p class="text-muted">Emails are sent when a check starts failing, and when it starts passing again.
+
+  <% if Blazer.slack? %>
+    <div class="form-group">
+      <%= f.label :slack_channels %>
+      <%= f.text_field :slack_channels, placeholder: "Optional, comma separated", class: "form-control" %>
+    </div>
+  <% end %>
+
+  <p class="text-muted">Emails <%= Blazer.slack? ? "and Slack notifications " : nil %>are sent when a check starts failing, and when it starts passing again.
   <p>
     <% if @check.persisted? %>
       <%= link_to "Delete", check_path(@check), method: :delete, "data-confirm" => "Are you sure?", class: "btn btn-danger" %>

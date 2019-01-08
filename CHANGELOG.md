@@ -1,8 +1,26 @@
-## 1.9.1 [unreleased]
+## 2.0.1
 
+- Added favicon
+- Added search for checks and schema
+- Added pie charts
+- Added Trend anomaly detection
+- Added forecasting
+- Improved tooltips
+- Improved docs for new installs
+- Fixed error with canceling queries
+
+## 2.0.0
+
+- Added support for Slack
+- Added `async` option
 - Added `override_csp` option
+- Added smart variables, linked columns smart columns, and charts to inline docs
 - Use SQL for Elasticsearch
 - Fixed error with latest `google-cloud-bigquery`
+
+Breaking changes
+
+- Dropped support for Rails < 4.2
 
 ## 1.9.0
 
